@@ -1,154 +1,245 @@
-// D65 sRGB / CIELAB. Distance uses CIE76, not RGB channel distance.
-import type { RGB, Lab, BeadColor, Chart } from './types.ts';
-interface Point { rgb: RGB; lab: Lab; count: number }
+// Reduces an image to a limited palette, either free colors or a fixed bead color card.
+// Colors are compared in CIELAB with the CIE76 distance, not in RGB.
+import { labToRgb, rgbToLab, squaredDistance } from './color.ts';
+import { EMPTY_CELL } from './constants.ts';
+import type { BeadColor, Chart, Lab, RGB } from './types.ts';
 
-export function rgbToLab(rgb: RGB): Lab {
-  const [r, g, b] = rgb.map(v => {
-    v /= 255;
-    return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
-  });
-  const f = (v: number) => v > 216 / 24389 ? Math.cbrt(v) : (24389 / 27 * v + 16) / 116;
-  const x = f((r * 0.4124564 + g * 0.3575761 + b * 0.1804375) / 0.95047);
-  const y = f(r * 0.2126729 + g * 0.7151522 + b * 0.0721750);
-  const z = f((r * 0.0193339 + g * 0.1191920 + b * 0.9503041) / 1.08883);
-  return [116 * y - 16, 500 * (x - y), 200 * (y - z)];
+/** One distinct opaque color of the image and how many cells use it. */
+interface HistogramEntry {
+  rgb: RGB;
+  lab: Lab;
+  count: number;
 }
 
-function labToRgb([l, a, b]: Lab): RGB {
-  const y = (l + 16) / 116;
-  const inverse = (v: number) => v ** 3 > 216 / 24389 ? v ** 3 : (116 * v - 16) * 27 / 24389;
-  const x = inverse(y + a / 500) * 0.95047;
-  const yy = inverse(y);
-  const z = inverse(y - b / 200) * 1.08883;
-  return [x * 3.2404542 - yy * 1.5371385 - z * 0.4985314,
-    -x * 0.9692660 + yy * 1.8760108 + z * 0.0415560,
-    x * 0.0556434 - yy * 0.2040259 + z * 1.0572252].map(v => {
-    const srgb = v <= 0.0031308 ? 12.92 * v : 1.055 * v ** (1 / 2.4) - 0.055;
-    return Math.round(Math.max(0, Math.min(1, srgb)) * 255);
-  }) as RGB;
+interface Palette {
+  colors: RGB[];
+  /** Bead codes, parallel to `colors`; only present when matching a color card. */
+  codes?: string[];
 }
 
-const distance = (a: Lab, b: Lab) => (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2;
-const keyOf = (rgb: RGB) => (rgb[0] << 16) | (rgb[1] << 8) | rgb[2];
+/** Entries of the indexed PNG palette, which is the hard cap for any chart. */
+const PNG_PALETTE_SIZE = 256;
+const MIN_COLORS = 2;
+const KMEANS_MAX_ITERATIONS = 8;
+const KMEANS_CONVERGED_DISTANCE = 0.01;
+const NO_COLOR = -1;
 
-function nearest(lab: Lab, centers: Lab[]) {
-  let best = 0;
-  let score = Infinity;
-  for (let i = 0; i < centers.length; i++) {
-    const d = distance(lab, centers[i]);
-    if (d < score) { best = i; score = d; }
-  }
-  return best;
-}
+const colorKey = (rgb: RGB) => (rgb[0] << 16) | (rgb[1] << 8) | rgb[2];
+const unique = (values: number[]) => [...new Set(values)];
 
-function box(points: Point[]) {
-  const min = [Infinity, Infinity, Infinity];
-  const max = [-Infinity, -Infinity, -Infinity];
-  let weight = 0;
-  for (const p of points) {
-    weight += p.count;
-    for (let j = 0; j < 3; j++) {
-      min[j] = Math.min(min[j], p.lab[j]);
-      max[j] = Math.max(max[j], p.lab[j]);
+function nearestIndex(lab: Lab, candidates: Lab[]): number {
+  let bestIndex = 0;
+  let bestDistance = Infinity;
+  for (let i = 0; i < candidates.length; i++) {
+    const distance = squaredDistance(lab, candidates[i]);
+    if (distance < bestDistance) {
+      bestIndex = i;
+      bestDistance = distance;
     }
   }
-  const spans = max.map((v, j) => v - min[j]);
-  const axis = spans.indexOf(Math.max(...spans));
-  return { points, weight, axis, score: points.length > 1 ? spans[axis] * Math.sqrt(weight) : 0 };
+  return bestIndex;
 }
 
-function mean(points: Point[]): Lab {
+function weightedMean(entries: HistogramEntry[]): Lab {
   const sum = [0, 0, 0];
   let weight = 0;
-  for (const p of points) {
-    weight += p.count;
-    for (let j = 0; j < 3; j++) sum[j] += p.lab[j] * p.count;
+  for (const entry of entries) {
+    weight += entry.count;
+    for (let axis = 0; axis < 3; axis++) sum[axis] += entry.lab[axis] * entry.count;
   }
-  return sum.map(v => v / weight) as Lab;
+  return sum.map(value => value / weight) as Lab;
 }
 
-export function quantize(rgba: Uint8ClampedArray, width: number, height: number, maxColors = 24, colorCard: BeadColor[] | null = null): Chart {
-  if (!Number.isInteger(width) || !Number.isInteger(height) || width < 1 || height < 1 || rgba.length !== width * height * 4) {
-    throw new Error('图片尺寸与像素数据不一致');
-  }
-  if (!Number.isInteger(maxColors) || maxColors < 2 || maxColors > 256) throw new Error('颜色上限必须为 2–256');
-  const histogram = new Map<number, Point>();
-  const keys = new Int32Array(width * height).fill(-1);
+/**
+ * Collects the distinct colors of the image and remembers each cell's color key.
+ * Partial transparency is composited on white; fully transparent cells stay empty.
+ */
+function buildHistogram(rgba: Uint8ClampedArray, cellCount: number) {
+  const histogram = new Map<number, HistogramEntry>();
+  const cellKeys = new Int32Array(cellCount).fill(NO_COLOR);
   let empty = 0;
-  for (let i = 0; i < keys.length; i++) {
-    const alpha = rgba[i * 4 + 3] / 255;
-    if (!alpha) { empty++; continue; }
-    // Partial transparency is composited on white; fully transparent cells stay empty.
-    const rgb = [0, 1, 2].map(j => Math.round(rgba[i * 4 + j] * alpha + 255 * (1 - alpha))) as RGB;
-    const key = keyOf(rgb);
-    keys[i] = key;
+  for (let cell = 0; cell < cellCount; cell++) {
+    const alpha = rgba[cell * 4 + 3] / 255;
+    if (!alpha) {
+      empty++;
+      continue;
+    }
+    const rgb = [0, 1, 2].map(channel => Math.round(rgba[cell * 4 + channel] * alpha + 255 * (1 - alpha))) as RGB;
+    const key = colorKey(rgb);
+    cellKeys[cell] = key;
     const existing = histogram.get(key);
     if (existing) existing.count++;
     else histogram.set(key, { rgb, lab: rgbToLab(rgb), count: 1 });
   }
-  const points = [...histogram.values()];
-  const limit = Math.min(maxColors, empty ? 255 : 256, colorCard?.length ?? 256);
-  const cardLabs = colorCard?.map(color => rgbToLab(color.rgb));
-  const matches = cardLabs ? [...new Set(points.map(p => nearest(p.lab, cardLabs)))] : null;
-  let palette: RGB[] = [];
-  let codes: string[] = [];
-  if (colorCard && matches && matches.length <= limit) {
-    palette = matches.map(i => colorCard[i].rgb);
-    codes = matches.map(i => colorCard[i].code);
-  } else if (!colorCard && points.length <= limit) palette = points.map(p => p.rgb);
-  else {
-    const boxes = [box(points)];
-    while (boxes.length < limit) {
-      let split = 0;
-      for (let i = 1; i < boxes.length; i++) if (boxes[i].score > boxes[split].score) split = i;
-      const current = boxes[split];
-      if (!current.score) break;
-      current.points.sort((a, b) => a.lab[current.axis] - b.lab[current.axis]);
-      let cumulative = 0;
-      let midpoint = 1;
-      for (let i = 0; i < current.points.length - 1; i++) {
-        cumulative += current.points[i].count;
-        midpoint = i + 1;
-        if (cumulative >= current.weight / 2) break;
-      }
-      boxes.splice(split, 1, box(current.points.slice(0, midpoint)), box(current.points.slice(midpoint)));
-    }
-    let centers = boxes.map(b => mean(b.points));
-    for (let iteration = 0; iteration < 8; iteration++) {
-      const groups: Point[][] = centers.map(() => []);
-      for (const p of points) groups[nearest(p.lab, centers)].push(p);
-      const updated = groups.map((g, i) => {
-        const center = g.length ? mean(g) : centers[i];
-        return cardLabs ? cardLabs[nearest(center, cardLabs)] : center;
-      });
-      const moved = updated.some((v, i) => distance(v, centers[i]) > 0.01);
-      centers = updated;
-      if (!moved) break;
-    }
-    if (colorCard) {
-      const selected = [...new Set(centers.map(c => nearest(c, cardLabs!)))];
-      palette = selected.map(i => colorCard[i].rgb);
-      codes = selected.map(i => colorCard[i].code);
-    } else {
-      palette = [...new Map(centers.map(c => {
-        const rgb = labToRgb(c);
-        return [keyOf(rgb), rgb];
-      })).values()];
+  return { histogram, cellKeys, empty };
+}
+
+// --- Median cut: initial cluster centers -------------------------------------
+
+interface ColorBox {
+  entries: HistogramEntry[];
+  weight: number;
+  /** Lab axis with the widest spread, along which the box is split. */
+  axis: number;
+  /** Wide, heavily used boxes are split first; a single color cannot be split. */
+  priority: number;
+}
+
+function createBox(entries: HistogramEntry[]): ColorBox {
+  const min = [Infinity, Infinity, Infinity];
+  const max = [-Infinity, -Infinity, -Infinity];
+  let weight = 0;
+  for (const entry of entries) {
+    weight += entry.count;
+    for (let axis = 0; axis < 3; axis++) {
+      min[axis] = Math.min(min[axis], entry.lab[axis]);
+      max[axis] = Math.max(max[axis], entry.lab[axis]);
     }
   }
-  const labs = palette.map(rgbToLab);
-  const assignments = new Map<number, number>();
-  const counts = palette.map(() => 0);
-  for (const [key, p] of histogram) {
-    const index = nearest(p.lab, labs);
-    assignments.set(key, index);
-    counts[index] += p.count;
+  const spans = max.map((value, axis) => value - min[axis]);
+  const axis = spans.indexOf(Math.max(...spans));
+  const priority = entries.length > 1 ? spans[axis] * Math.sqrt(weight) : 0;
+  return { entries, weight, axis, priority };
+}
+
+function splitAtWeightedMedian(box: ColorBox): [ColorBox, ColorBox] {
+  const sorted = box.entries.sort((a, b) => a.lab[box.axis] - b.lab[box.axis]);
+  let cumulative = 0;
+  let splitIndex = 1;
+  for (let i = 0; i < sorted.length - 1; i++) {
+    cumulative += sorted[i].count;
+    splitIndex = i + 1;
+    if (cumulative >= box.weight / 2) break;
   }
-  // Stable chart labels: most-used color first. Remove unused entries.
-  const order = palette.map((_, i) => i).filter(i => counts[i]).sort((a, b) => counts[b] - counts[a] || a - b);
-  const remap = new Map(order.map((old, index) => [old, index]));
-  const indices = new Uint16Array(keys.length);
-  for (let i = 0; i < keys.length; i++) indices[i] = keys[i] === -1 ? 65535 : remap.get(assignments.get(keys[i])!)!;
-  return { width, height, palette: order.map(i => palette[i]), counts: order.map(i => counts[i]), indices, empty,
-    ...(colorCard ? { codes: order.map(i => codes[i]) } : {}) };
+  return [createBox(sorted.slice(0, splitIndex)), createBox(sorted.slice(splitIndex))];
+}
+
+function medianCut(entries: HistogramEntry[], targetCount: number): Lab[] {
+  const boxes = [createBox(entries)];
+  while (boxes.length < targetCount) {
+    let splitIndex = 0;
+    for (let i = 1; i < boxes.length; i++) {
+      if (boxes[i].priority > boxes[splitIndex].priority) splitIndex = i;
+    }
+    const box = boxes[splitIndex];
+    if (!box.priority) break;
+    boxes.splice(splitIndex, 1, ...splitAtWeightedMedian(box));
+  }
+  return boxes.map(box => weightedMean(box.entries));
+}
+
+// --- Weighted k-means: refine the centers ------------------------------------
+
+/** `constrain` maps every updated center, e.g. onto the nearest card color. */
+function refineCenters(entries: HistogramEntry[], initialCenters: Lab[], constrain: (center: Lab) => Lab): Lab[] {
+  let centers = initialCenters;
+  for (let iteration = 0; iteration < KMEANS_MAX_ITERATIONS; iteration++) {
+    const clusters: HistogramEntry[][] = centers.map(() => []);
+    for (const entry of entries) clusters[nearestIndex(entry.lab, centers)].push(entry);
+    const updated = clusters.map((cluster, i) => constrain(cluster.length ? weightedMean(cluster) : centers[i]));
+    const moved = updated.some((center, i) => squaredDistance(center, centers[i]) > KMEANS_CONVERGED_DISTANCE);
+    centers = updated;
+    if (!moved) break;
+  }
+  return centers;
+}
+
+// --- Palette selection -------------------------------------------------------
+
+function chooseFreePalette(entries: HistogramEntry[], limit: number): Palette {
+  if (entries.length <= limit) return { colors: entries.map(entry => entry.rgb) };
+  const centers = refineCenters(entries, medianCut(entries, limit), center => center);
+  // Distinct Lab centers can round to the same sRGB color; keep each color once.
+  const colors = new Map(centers.map(center => {
+    const rgb = labToRgb(center);
+    return [colorKey(rgb), rgb];
+  }));
+  return { colors: [...colors.values()] };
+}
+
+function chooseCardPalette(entries: HistogramEntry[], limit: number, card: BeadColor[]): Palette {
+  const cardLabs = card.map(color => rgbToLab(color.rgb));
+  const nearestCardIndex = (lab: Lab) => nearestIndex(lab, cardLabs);
+  const fromCard = (cardIndices: number[]): Palette => ({
+    colors: cardIndices.map(i => card[i].rgb),
+    codes: cardIndices.map(i => card[i].code),
+  });
+
+  // Plain nearest-color matching keeps the most detail, so use it when it fits the budget.
+  const directMatches = unique(entries.map(entry => nearestCardIndex(entry.lab)));
+  if (directMatches.length <= limit) return fromCard(directMatches);
+
+  const centers = refineCenters(entries, medianCut(entries, limit), center => cardLabs[nearestCardIndex(center)]);
+  return fromCard(unique(centers.map(nearestCardIndex)));
+}
+
+// --- Chart assembly ----------------------------------------------------------
+
+/**
+ * Maps every cell to its nearest palette color, drops unused colors and orders the
+ * palette by usage (most used first), so chart labels are stable and meaningful.
+ */
+function buildChart(
+  width: number,
+  height: number,
+  { histogram, cellKeys, empty }: ReturnType<typeof buildHistogram>,
+  palette: Palette,
+): Chart {
+  const paletteLabs = palette.colors.map(rgbToLab);
+  const paletteIndexByKey = new Map<number, number>();
+  const counts = palette.colors.map(() => 0);
+  for (const [key, entry] of histogram) {
+    const index = nearestIndex(entry.lab, paletteLabs);
+    paletteIndexByKey.set(key, index);
+    counts[index] += entry.count;
+  }
+
+  const order = palette.colors
+    .map((_, index) => index)
+    .filter(index => counts[index])
+    .sort((a, b) => counts[b] - counts[a] || a - b);
+  const finalIndexOf = new Map(order.map((oldIndex, newIndex) => [oldIndex, newIndex]));
+
+  const indices = new Uint16Array(cellKeys.length);
+  for (let cell = 0; cell < cellKeys.length; cell++) {
+    const key = cellKeys[cell];
+    indices[cell] = key === NO_COLOR ? EMPTY_CELL : finalIndexOf.get(paletteIndexByKey.get(key)!)!;
+  }
+
+  const { codes } = palette;
+  return {
+    width,
+    height,
+    palette: order.map(i => palette.colors[i]),
+    counts: order.map(i => counts[i]),
+    indices,
+    empty,
+    ...(codes ? { codes: order.map(i => codes[i]) } : {}),
+  };
+}
+
+/**
+ * @param rgba One pixel per cell.
+ * @param colorCard Restricts the palette to these bead colors; `null` allows any color.
+ */
+export function quantize(
+  rgba: Uint8ClampedArray,
+  width: number,
+  height: number,
+  maxColors = 24,
+  colorCard: BeadColor[] | null = null,
+): Chart {
+  const validSize = Number.isInteger(width) && Number.isInteger(height) && width >= 1 && height >= 1;
+  if (!validSize || rgba.length !== width * height * 4) throw new Error('图片尺寸与像素数据不一致');
+  if (!Number.isInteger(maxColors) || maxColors < MIN_COLORS || maxColors > PNG_PALETTE_SIZE) {
+    throw new Error('颜色上限必须为 2–256');
+  }
+
+  const histogram = buildHistogram(rgba, width * height);
+  const entries = [...histogram.histogram.values()];
+  // Empty cells need a transparent slot of their own in the indexed PNG palette.
+  const pngLimit = histogram.empty ? PNG_PALETTE_SIZE - 1 : PNG_PALETTE_SIZE;
+  const limit = Math.min(maxColors, pngLimit, colorCard?.length ?? PNG_PALETTE_SIZE);
+  const palette = colorCard ? chooseCardPalette(entries, limit, colorCard) : chooseFreePalette(entries, limit);
+  return buildChart(width, height, histogram, palette);
 }

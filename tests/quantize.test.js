@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { quantize, rgbToLab } from '../src/quantize.ts';
+import { rgbToLab } from '../src/color.ts';
+import { quantize } from '../src/quantize.ts';
 
 const pixels = colors => new Uint8ClampedArray(colors.flat());
 

@@ -42,7 +42,7 @@ test('fallback export yields, uses real codes, and releases its canvas buffer', 
   const ctx = context(); ctx.strokeRect = () => {};
   const canvas = { getContext: () => ctx, toBlob: resolve => resolve(new Blob(['PNG'], {type:'image/png'})) };
   let yields = 0;
-  const blob = await chartPng(chart, () => canvas, async () => { yields++; });
+  const blob = await chartPng(chart, { createCanvas: () => canvas, yieldBetweenRows: async () => { yields++; } });
   assert.equal(blob.type, 'image/png');
   assert.equal(yields, 4);
   assert.ok(ctx.labels.some(text => text === 'H2  #FFFFFF'));
@@ -52,6 +52,6 @@ test('fallback export yields, uses real codes, and releases its canvas buffer', 
 test('failed PNG encoding still releases the canvas buffer', async () => {
   const ctx = context(); ctx.strokeRect = () => {};
   const canvas = { getContext: () => ctx, toBlob: resolve => resolve(null) };
-  await assert.rejects(chartPng(chart, () => canvas), /图纸导出失败/);
+  await assert.rejects(chartPng(chart, { createCanvas: () => canvas }), /图纸导出失败/);
   assert.equal(canvas.width, 1); assert.equal(canvas.height, 1);
 });
