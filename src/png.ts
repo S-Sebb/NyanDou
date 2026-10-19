@@ -44,7 +44,10 @@ function createHeader(width: number, height: number): Bytes {
   return header;
 }
 
-/** Appends a transparent palette slot when the chart has empty cells. */
+/**
+ * Appends a transparent palette slot when the chart has empty cells. Without empty
+ * cells every cell uses a bead color, so the palette is never empty.
+ */
 function paletteWithTransparency({ palette, empty }: Chart) {
   if (!empty) return { entries: palette, transparentIndex: null };
   // Without beads the palette is just the transparent slot at index 0.
