@@ -1,93 +1,127 @@
-// Illustrative top-down bead rendering. Both states use the chart's exact indices;
-// this is not a physical simulation of plastic melting or a calibrated color proof.
-const SIZE = 64;
-import type { RGB, ChartPixels, BeadState } from './types.ts';
+// Illustrative top-down rendering of beads before and after ironing. Both states use
+// the chart's exact cells; this is neither a physical simulation of melting plastic
+// nor a calibrated color proof.
+import { EMPTY_CELL } from './constants.ts';
+import type { BeadState, ChartPixels, RGB } from './types.ts';
 
-export function neighborMask(indices: Uint16Array, width: number, height: number, x: number, y: number) {
-  const occupied = (xx: number, yy: number) => xx >= 0 && xx < width && yy >= 0 && yy < height && indices[yy * width + xx] !== 65535;
-  return (occupied(x, y - 1) ? 1 : 0) | (occupied(x + 1, y) ? 2 : 0)
-    | (occupied(x, y + 1) ? 4 : 0) | (occupied(x - 1, y) ? 8 : 0);
+/** Bits of a neighbor mask: which adjacent cells hold a bead. */
+const UP = 1;
+const RIGHT = 2;
+const DOWN = 4;
+const LEFT = 8;
+
+/** Sprites are drawn once per color and shape at this size, then scaled to the cell. */
+const SPRITE_SIZE = 64;
+/** A round bead leaves a small gap to its neighbors. */
+const ROUND_BEAD_RADIUS = SPRITE_SIZE * 0.455;
+
+export function neighborMask(indices: Uint16Array, width: number, height: number, x: number, y: number): number {
+  const occupied = (column: number, row: number) =>
+    column >= 0 && column < width && row >= 0 && row < height && indices[row * width + column] !== EMPTY_CELL;
+  return (occupied(x, y - 1) ? UP : 0)
+    | (occupied(x + 1, y) ? RIGHT : 0)
+    | (occupied(x, y + 1) ? DOWN : 0)
+    | (occupied(x - 1, y) ? LEFT : 0);
 }
 
-function shade(rgb: RGB, amount: number) {
-  return `rgb(${rgb.map(value => Math.round(value + ((amount > 0 ? 255 : 0) - value) * Math.abs(amount))).join(',')})`;
+/** Mixes the color towards white (amount > 0) or black (amount < 0). */
+function shade(rgb: RGB, amount: number): string {
+  const target = amount > 0 ? 255 : 0;
+  const mixed = rgb.map(value => Math.round(value + (target - value) * Math.abs(amount)));
+  return `rgb(${mixed.join(',')})`;
 }
 
-function fusedOutline(context: CanvasRenderingContext2D, mask: number) {
-  const left = mask & 8 ? 0 : SIZE * 0.04;
-  const top = mask & 1 ? 0 : SIZE * 0.04;
-  const right = mask & 2 ? SIZE : SIZE * 0.96;
-  const bottom = mask & 4 ? SIZE : SIZE * 0.96;
-  const radius = SIZE * 0.16;
-  const tl = mask & 9 ? 0 : radius;
-  const tr = mask & 3 ? 0 : radius;
-  const br = mask & 6 ? 0 : radius;
-  const bl = mask & 12 ? 0 : radius;
-  context.moveTo(left + tl, top);
-  context.lineTo(right - tr, top);
-  context.quadraticCurveTo(right, top, right, top + tr);
-  context.lineTo(right, bottom - br);
-  context.quadraticCurveTo(right, bottom, right - br, bottom);
-  context.lineTo(left + bl, bottom);
-  context.quadraticCurveTo(left, bottom, left, bottom - bl);
-  context.lineTo(left, top + tl);
-  context.quadraticCurveTo(left, top, left + tl, top);
+/**
+ * A rounded square that reaches the cell edge towards occupied neighbors, so fused
+ * beads join into one piece. Corners stay round only where both sides are open.
+ */
+function traceFusedOutline(context: CanvasRenderingContext2D, mask: number) {
+  const left = mask & LEFT ? 0 : SPRITE_SIZE * 0.04;
+  const top = mask & UP ? 0 : SPRITE_SIZE * 0.04;
+  const right = mask & RIGHT ? SPRITE_SIZE : SPRITE_SIZE * 0.96;
+  const bottom = mask & DOWN ? SPRITE_SIZE : SPRITE_SIZE * 0.96;
+  const radius = SPRITE_SIZE * 0.16;
+  const topLeft = mask & (UP | LEFT) ? 0 : radius;
+  const topRight = mask & (UP | RIGHT) ? 0 : radius;
+  const bottomRight = mask & (DOWN | RIGHT) ? 0 : radius;
+  const bottomLeft = mask & (DOWN | LEFT) ? 0 : radius;
+  context.moveTo(left + topLeft, top);
+  context.lineTo(right - topRight, top);
+  context.quadraticCurveTo(right, top, right, top + topRight);
+  context.lineTo(right, bottom - bottomRight);
+  context.quadraticCurveTo(right, bottom, right - bottomRight, bottom);
+  context.lineTo(left + bottomLeft, bottom);
+  context.quadraticCurveTo(left, bottom, left, bottom - bottomLeft);
+  context.lineTo(left, top + topLeft);
+  context.quadraticCurveTo(left, top, left + topLeft, top);
   context.closePath();
 }
 
-function sprite(rgb: RGB, fused: boolean, mask: number, document: Document) {
-  const image = document.createElement('canvas');
-  image.width = image.height = SIZE;
-  const context = image.getContext('2d')!;
-  const center = SIZE / 2;
-  const outer = SIZE * 0.455;
-  const hole = SIZE * (fused ? 0.075 : 0.17);
-  const body = context.createLinearGradient(0, 0, SIZE, SIZE);
+function drawBeadBody(context: CanvasRenderingContext2D, rgb: RGB, fused: boolean, mask: number) {
+  const center = SPRITE_SIZE / 2;
+  const body = context.createLinearGradient(0, 0, SPRITE_SIZE, SPRITE_SIZE);
   body.addColorStop(0, shade(rgb, fused ? 0.10 : 0.28));
   body.addColorStop(0.45, shade(rgb, 0));
   body.addColorStop(1, shade(rgb, fused ? -0.07 : -0.22));
   context.save();
   if (!fused) {
     context.shadowColor = '#332a2638';
-    context.shadowBlur = SIZE * 0.035;
-    context.shadowOffsetY = SIZE * 0.025;
+    context.shadowBlur = SPRITE_SIZE * 0.035;
+    context.shadowOffsetY = SPRITE_SIZE * 0.025;
   }
   context.beginPath();
-  if (fused) fusedOutline(context, mask);
-  else context.arc(center, center, outer, 0, Math.PI * 2);
+  if (fused) traceFusedOutline(context, mask);
+  else context.arc(center, center, ROUND_BEAD_RADIUS, 0, Math.PI * 2);
   context.fillStyle = body;
   context.fill();
   context.restore();
+}
 
-  // Cut an actual transparent hole. Empty cells and holes expose the same surface.
+/** Cuts a truly transparent hole, so holes and empty cells show the same background. */
+function drawBeadHole(context: CanvasRenderingContext2D, rgb: RGB, fused: boolean) {
+  const center = SPRITE_SIZE / 2;
+  const radius = SPRITE_SIZE * (fused ? 0.075 : 0.17);
   context.save();
   context.globalCompositeOperation = 'destination-out';
   context.beginPath();
-  context.arc(center, center, hole, 0, Math.PI * 2);
+  context.arc(center, center, radius, 0, Math.PI * 2);
   context.fill();
   context.restore();
 
-  const wall = context.createLinearGradient(0, 0, SIZE, SIZE);
+  const wall = context.createLinearGradient(0, 0, SPRITE_SIZE, SPRITE_SIZE);
   wall.addColorStop(0, shade(rgb, -0.46));
   wall.addColorStop(1, shade(rgb, 0.14));
   context.strokeStyle = wall;
-  context.lineWidth = SIZE * (fused ? 0.022 : 0.045);
+  context.lineWidth = SPRITE_SIZE * (fused ? 0.022 : 0.045);
   context.beginPath();
-  context.arc(center, center, hole + context.lineWidth / 2, 0, Math.PI * 2);
+  context.arc(center, center, radius + context.lineWidth / 2, 0, Math.PI * 2);
   context.stroke();
-  if (!fused) {
-    context.strokeStyle = '#ffffff48';
-    context.lineWidth = SIZE * 0.018;
-    context.beginPath();
-    context.arc(center, center, outer - SIZE * 0.025, Math.PI * 1.03, Math.PI * 1.68);
-    context.stroke();
-  }
-  return image;
 }
 
-export function drawBeads(context: CanvasRenderingContext2D, chart: ChartPixels, cell: number, state: BeadState = 'round') {
+function drawHighlight(context: CanvasRenderingContext2D) {
+  const center = SPRITE_SIZE / 2;
+  context.strokeStyle = '#ffffff48';
+  context.lineWidth = SPRITE_SIZE * 0.018;
+  context.beginPath();
+  context.arc(center, center, ROUND_BEAD_RADIUS - SPRITE_SIZE * 0.025, Math.PI * 1.03, Math.PI * 1.68);
+  context.stroke();
+}
+
+function createBeadSprite(document: Document, rgb: RGB, fused: boolean, mask: number): HTMLCanvasElement {
+  const sprite = document.createElement('canvas');
+  sprite.width = sprite.height = SPRITE_SIZE;
+  const context = sprite.getContext('2d')!;
+  drawBeadBody(context, rgb, fused, mask);
+  drawBeadHole(context, rgb, fused);
+  if (!fused) drawHighlight(context);
+  return sprite;
+}
+
+export function drawBeads(context: CanvasRenderingContext2D, chart: ChartPixels, cell: number, state: BeadState = 'round'): void {
   const { width, height, indices, palette } = chart;
   const fused = state === 'fused';
+  // Create sprites in the target canvas's document, which may be another frame's.
+  const document = context.canvas.ownerDocument;
   const sprites = new Map<number, HTMLCanvasElement>();
   context.save();
   context.imageSmoothingEnabled = true;
@@ -95,15 +129,15 @@ export function drawBeads(context: CanvasRenderingContext2D, chart: ChartPixels,
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const index = indices[y * width + x];
-      if (index === 65535) continue;
+      if (index === EMPTY_CELL) continue;
       const mask = fused ? neighborMask(indices, width, height, x, y) : 0;
       const key = index * 16 + mask;
-      let image = sprites.get(key);
-      if (!image) {
-        image = sprite(palette[index], fused, mask, context.canvas.ownerDocument);
-        sprites.set(key, image);
+      let sprite = sprites.get(key);
+      if (!sprite) {
+        sprite = createBeadSprite(document, palette[index], fused, mask);
+        sprites.set(key, sprite);
       }
-      context.drawImage(image, x * cell, y * cell, cell, cell);
+      context.drawImage(sprite, x * cell, y * cell, cell, cell);
     }
   }
   context.restore();

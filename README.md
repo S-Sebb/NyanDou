@@ -20,7 +20,25 @@ npm run build
 npm run preview
 ```
 
-`src/` 包含 TypeScript 源码；共享数据和 Worker 消息类型在 `src/types.ts`。`npm run check` 执行严格类型检查。Vite 将两个 Worker 分别打包，生成带内容版本号的 JS、CSS 和图标；`dist/` 是唯一发布内容，包含 gzip 预压缩文件，不包含源码映射、测试或开发工具。
+`src/` 包含 TypeScript 源码。`npm run check` 执行严格类型检查。
+
+| 模块 | 内容 |
+| --- | --- |
+| `app.ts` | 页面控制：读取图片、调度生成、预览、导出 |
+| `ui.ts` | 页面元素的类型化引用 |
+| `image-source.ts` | 图纸尺寸、缩小采样、缩略图 |
+| `quantize-job.ts` / `worker.ts` | 生成 Worker 的调用端与 Worker 本体 |
+| `export.ts` / `export-worker.ts` | 下载文件导出（Worker 或主线程回退） |
+| `worker-job.ts` | 单次 Worker 任务：超时、崩溃与结束处理 |
+| `stylize.ts` | 轮廓优先：每颗豆 4×4 采样 |
+| `quantize.ts` | 直方图、median-cut、k-means、色卡匹配 |
+| `color.ts` | sRGB / CIELAB 转换与颜色距离 |
+| `chart.ts` | 带编号网格与 PNG 图纸 |
+| `beads.ts` | 熨烫前后的拼豆效果 |
+| `preview.ts` / `palette-list.ts` | 预览画布与用豆清单 |
+| `png.ts` / `csv.ts` / `download.ts` | 8bit 索引 PNG、CSV 与下载 |
+| `mard.ts` | MARD 标准 221 色数据 |
+| `types.ts` / `constants.ts` / `format.ts` / `canvas.ts` / `demo.ts` | 共享类型、常量、格式化、画布释放、示例图 |Vite 将两个 Worker 分别打包，生成带内容版本号的 JS、CSS 和图标；`dist/` 是唯一发布内容，包含 gzip 预压缩文件，不包含源码映射、测试或开发工具。
 
 ## 同 Wi-Fi 手机访问
 
