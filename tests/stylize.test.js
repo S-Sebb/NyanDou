@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { rgbToLab } from '../src/color.ts';
 import { EMPTY_CELL } from '../src/constants.ts';
 import { MARD221 } from '../src/mard.ts';
 import { quantize } from '../src/quantize.ts';
@@ -12,15 +13,40 @@ const sampleOffset = (x, y) => (y * 4 + x) * 4;
 const luma = rgb => rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722;
 
 const SKIN = [240, 220, 210];
+const PAPER = [235, 235, 235];
 const INK = [20, 20, 20];
+const chroma = rgb => Math.hypot(...rgbToLab(rgb).slice(1));
 
-test('flat colors and fully transparent input remain exact', () => {
-  assert.deepEqual([...stylize(tile([20, 150, 210]), 1, 1)], [20, 150, 210, 255]);
+test('grays and fully transparent input remain exact', () => {
+  assert.deepEqual([...stylize(tile(PAPER), 1, 1)], [...PAPER, 255]);
   assert.deepEqual([...stylize(new Uint8ClampedArray(64), 1, 1)], [0, 0, 0, 0]);
+});
 
-  const halfTransparent = tile([20, 150, 210]);
+test('colors become more saturated at the same lightness', () => {
+  const styled = [...stylize(tile([120, 160, 180]), 1, 1)];
+  assert.equal(styled[3], 255);
+  assert.ok(chroma(styled.slice(0, 3)) > chroma([120, 160, 180]) * 1.15);
+  assert.ok(Math.abs(rgbToLab(styled.slice(0, 3))[0] - rgbToLab([120, 160, 180])[0]) < 1);
+});
+
+test('beads are placed solid when at least half covered, otherwise left empty', () => {
+  const halfTransparent = tile(PAPER);
   for (let i = 3; i < 64; i += 4) halfTransparent[i] = 128;
-  assert.deepEqual([...stylize(halfTransparent, 1, 1)], [20, 150, 210, 128]);
+  assert.deepEqual([...stylize(halfTransparent, 1, 1)], [...PAPER, 255]);
+
+  const quarterCovered = tile(PAPER);
+  for (let y = 0; y < 4; y++) for (let x = 1; x < 4; x++) quarterCovered[sampleOffset(x, y) + 3] = 0;
+  assert.deepEqual([...stylize(quarterCovered, 1, 1)], [0, 0, 0, 0]);
+});
+
+test('samples blended across an edge do not tint the chosen color', () => {
+  // A pale mint area meets white paper; the second column blends both sides.
+  const input = tile(PAPER);
+  for (let y = 0; y < 4; y++) {
+    input.set([200, 235, 200, 255], sampleOffset(0, y));
+    input.set([226, 235, 226, 255], sampleOffset(1, y));
+  }
+  assert.deepEqual([...stylize(input, 1, 1)], [...PAPER, 255]);
 });
 
 test('connected thin eyes and outlines survive where average downsampling blurs them', () => {
@@ -36,15 +62,15 @@ test('connected thin eyes and outlines survive where average downsampling blurs 
 });
 
 test('one dark noise speck is removed, not expanded into a bead', () => {
-  const input = tile(SKIN);
+  const input = tile(PAPER);
   input.set([...INK, 255], sampleOffset(1, 1));
-  assert.deepEqual([...stylize(input, 1, 1)], [...SKIN, 255]);
+  assert.deepEqual([...stylize(input, 1, 1)], [...PAPER, 255]);
 });
 
 test('low-contrast shades are averaged instead of being made into harsh outlines', () => {
-  const input = tile([210, 180, 160]);
-  for (let y = 0; y < 4; y++) input.set([200, 170, 150, 255], sampleOffset(1, y));
-  assert.deepEqual([...stylize(input, 1, 1)], [208, 178, 158, 255]);
+  const input = tile([210, 210, 210]);
+  for (let y = 0; y < 4; y++) input.set([190, 190, 190, 255], sampleOffset(1, y));
+  assert.deepEqual([...stylize(input, 1, 1)], [205, 205, 205, 255]);
 });
 
 test('32-bead output is deterministic, uses only MARD codes and preserves count contracts', () => {

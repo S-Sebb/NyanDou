@@ -23,6 +23,10 @@ const MIN_COLORS = 2;
 const KMEANS_MAX_ITERATIONS = 8;
 const KMEANS_CONVERGED_DISTANCE = 0.01;
 const NO_COLOR = -1;
+/** A lone bead closer than this (CIE76) to the color around it is noise, not detail. */
+const SPECKLE_MAX_DIFFERENCE = 25;
+/** How many of the 8 surrounding beads must share the color a speckle takes over. */
+const SPECKLE_MIN_SURROUNDING = 3;
 
 const colorKey = (rgb: RGB) => (rgb[0] << 16) | (rgb[1] << 8) | rgb[2];
 const unique = (values: number[]) => [...new Set(values)];
@@ -173,6 +177,47 @@ function chooseCardPalette(entries: HistogramEntry[], limit: number, card: BeadC
   return fromCard(unique(centers.map(nearestCardIndex)));
 }
 
+// --- Speckle removal -----------------------------------------------------------
+
+/**
+ * Recolors lone beads (no side neighbour of the same color) with the most common color
+ * around them, when the two are similar. Texture and gradient noise becomes flat areas;
+ * contrasting details such as eyes and highlights are kept.
+ */
+function removeSpeckles(indices: Uint16Array, width: number, height: number, labs: Lab[]) {
+  const source = indices.slice();
+  const tally = new Map<number, number>();
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const cell = y * width + x;
+      const index = source[cell];
+      if (index === EMPTY_CELL) continue;
+      const hasTwin = (x > 0 && source[cell - 1] === index) || (x < width - 1 && source[cell + 1] === index)
+        || (y > 0 && source[cell - width] === index) || (y < height - 1 && source[cell + width] === index);
+      if (hasTwin) continue;
+
+      tally.clear();
+      for (let ny = Math.max(0, y - 1); ny <= Math.min(height - 1, y + 1); ny++) {
+        for (let nx = Math.max(0, x - 1); nx <= Math.min(width - 1, x + 1); nx++) {
+          const neighbour = source[ny * width + nx];
+          if (neighbour !== EMPTY_CELL && neighbour !== index) tally.set(neighbour, (tally.get(neighbour) ?? 0) + 1);
+        }
+      }
+      let surrounding = EMPTY_CELL;
+      let best = SPECKLE_MIN_SURROUNDING - 1;
+      for (const [neighbour, count] of tally) {
+        if (count > best) {
+          surrounding = neighbour;
+          best = count;
+        }
+      }
+      if (surrounding !== EMPTY_CELL && squaredDistance(labs[index], labs[surrounding]) < SPECKLE_MAX_DIFFERENCE ** 2) {
+        indices[cell] = surrounding;
+      }
+    }
+  }
+}
+
 // --- Chart assembly ----------------------------------------------------------
 
 /**
@@ -184,26 +229,29 @@ function buildChart(
   height: number,
   { histogram, cellKeys, empty }: ReturnType<typeof buildHistogram>,
   palette: Palette,
+  simplify: boolean,
 ): Chart {
   const paletteLabs = palette.colors.map(rgbToLab);
   const paletteIndexByKey = new Map<number, number>();
-  const counts = palette.colors.map(() => 0);
-  for (const [key, entry] of histogram) {
-    const index = nearestIndex(entry.lab, paletteLabs);
-    paletteIndexByKey.set(key, index);
-    counts[index] += entry.count;
-  }
-
-  const order = palette.colors
-    .map((_, index) => index)
-    .filter(index => counts[index])
-    .sort((a, b) => counts[b] - counts[a] || a - b);
-  const finalIndexOf = new Map(order.map((oldIndex, newIndex) => [oldIndex, newIndex]));
+  for (const [key, entry] of histogram) paletteIndexByKey.set(key, nearestIndex(entry.lab, paletteLabs));
 
   const indices = new Uint16Array(cellKeys.length);
   for (let cell = 0; cell < cellKeys.length; cell++) {
     const key = cellKeys[cell];
-    indices[cell] = key === NO_COLOR ? EMPTY_CELL : finalIndexOf.get(paletteIndexByKey.get(key)!)!;
+    indices[cell] = key === NO_COLOR ? EMPTY_CELL : paletteIndexByKey.get(key)!;
+  }
+  if (simplify) removeSpeckles(indices, width, height, paletteLabs);
+
+  const counts = palette.colors.map(() => 0);
+  for (const index of indices) if (index !== EMPTY_CELL) counts[index]++;
+  const order = palette.colors
+    .map((_, index) => index)
+    .filter(index => counts[index])
+    .sort((a, b) => counts[b] - counts[a] || a - b);
+  const finalIndexOf = palette.colors.map(() => 0);
+  order.forEach((oldIndex, newIndex) => { finalIndexOf[oldIndex] = newIndex; });
+  for (let cell = 0; cell < indices.length; cell++) {
+    if (indices[cell] !== EMPTY_CELL) indices[cell] = finalIndexOf[indices[cell]];
   }
 
   const { codes } = palette;
@@ -221,6 +269,7 @@ function buildChart(
 /**
  * @param rgba One pixel per cell.
  * @param colorCard Restricts the palette to these bead colors; `null` allows any color.
+ * @param simplify Removes lone beads that barely differ from their surroundings.
  */
 export function quantize(
   rgba: Uint8ClampedArray,
@@ -228,6 +277,7 @@ export function quantize(
   height: number,
   maxColors = 24,
   colorCard: BeadColor[] | null = null,
+  simplify = false,
 ): Chart {
   const validSize = Number.isInteger(width) && Number.isInteger(height) && width >= 1 && height >= 1;
   if (!validSize || rgba.length !== width * height * 4) throw new Error('图片尺寸与像素数据不一致');
@@ -241,5 +291,5 @@ export function quantize(
   const pngLimit = histogram.empty ? PNG_PALETTE_SIZE - 1 : PNG_PALETTE_SIZE;
   const limit = Math.min(maxColors, pngLimit, colorCard?.length ?? PNG_PALETTE_SIZE);
   const palette = colorCard ? chooseCardPalette(entries, limit, colorCard) : chooseFreePalette(entries, limit);
-  return buildChart(width, height, histogram, palette);
+  return buildChart(width, height, histogram, palette, simplify);
 }
