@@ -18,6 +18,7 @@ export const ui = {
   // 02 Settings
   colorCard: element('color-card', HTMLSelectElement),
   designStyle: element('design-style', HTMLSelectElement),
+  widthPresets: [...document.querySelectorAll<HTMLButtonElement>('button[data-width]')],
   widthInput: element('width-input', HTMLInputElement),
   widthValue: element('width-value', HTMLOutputElement),
   colorsInput: element('colors-input', HTMLInputElement),

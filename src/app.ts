@@ -103,7 +103,7 @@ function syncSettingControls() {
   if (Number(ui.colorsInput.value) > limit) ui.colorsInput.value = String(limit);
   ui.colorsMax.textContent = `${limit} · ${isMard ? '全色' : '丰富'}`;
   ui.fullColorsPreset.dataset.colors = String(limit);
-  ui.fullColorsPreset.textContent = `${limit} 色`;
+  ui.fullColorsPreset.querySelector('strong')!.textContent = String(limit);
   ui.colorNote.textContent = isMard
     ? '匹配 MARD 标准 221 色。颜色更少，拼起来更轻松。'
     : '自动提取参考配色，不对应实物色号。颜色更少，拼起来更轻松。';
@@ -112,6 +112,7 @@ function syncSettingControls() {
   ui.colorsValue.textContent = `${ui.colorsInput.value} 色`;
   ui.widthInput.setAttribute('aria-valuetext', ui.widthValue.textContent);
   ui.colorsInput.setAttribute('aria-valuetext', ui.colorsValue.textContent);
+  for (const preset of ui.widthPresets) setPressed(preset, preset.dataset.width === ui.widthInput.value);
   for (const preset of ui.colorPresets) setPressed(preset, preset.dataset.colors === ui.colorsInput.value);
 }
 
@@ -368,6 +369,12 @@ function bindSettingEvents() {
   ui.colorsInput.addEventListener('input', scheduleGeneration);
   ui.colorCard.addEventListener('change', scheduleGeneration);
   ui.designStyle.addEventListener('change', scheduleGeneration);
+  for (const preset of ui.widthPresets) {
+    preset.addEventListener('click', () => {
+      ui.widthInput.value = preset.dataset.width!;
+      scheduleGeneration();
+    });
+  }
   for (const preset of ui.colorPresets) {
     preset.addEventListener('click', () => {
       ui.colorsInput.value = preset.dataset.colors!;

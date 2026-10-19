@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#fff6f7">
+  <meta name="theme-color" content="#fbf5ee">
   <meta name="description" content="ニャンドゥ：把喜欢的图片变成拼豆图纸。图片在本机处理，支持 8bit 索引色、颜色编号和用豆清单。">
   <link rel="canonical" href="https://dou.love765.me/">
   <meta property="og:type" content="website">
@@ -24,174 +24,152 @@
 
   <header class="header">
     <a class="brand" href="./" aria-label="ニャンドゥ首页">
-      <span class="brand-mark"><img src="assets/neko.svg" alt="" width="42" height="42"></span>
+      <span class="brand-mark"><img src="assets/neko.svg" alt="" width="34" height="34"></span>
       <span class="brand-text">
         <strong lang="ja">ニャンドゥ</strong>
-        <span>NyanDou <i>·</i> 拼豆工作台</span>
+        <span>NyanDou <i>·</i> 拼豆手作坊</span>
       </span>
     </a>
-    <div class="header-right">
-      <span class="header-motto" lang="ja">ひと粒ずつ、好きなかたちに。</span>
-      <span class="privacy"><span></span> 图片只在本机处理</span>
-    </div>
+    <span class="privacy">
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+      图片只在本机处理
+    </span>
   </header>
 
   <main>
     <section class="intro">
-      <div>
-        <span class="eyebrow"><span class="tiny-bead" aria-hidden="true"></span> A LITTLE IMAGE, A LITTLE JOY</span>
-        <h1>喜欢的画面，<span>一颗颗拼出来。</span></h1>
-        <p>从图片到拼豆图纸，让下一份手作从这里开始。</p>
+      <div class="intro-copy">
+        <span class="eyebrow" lang="ja">ひと粒ずつ、好きなかたちに。</span>
+        <h1>把喜欢的画面，<span>一颗颗拼出来。</span></h1>
+        <ol class="how-to" aria-label="使用步骤">
+          <li><span class="bead bead-rose" aria-hidden="true"></span>放一张图</li>
+          <li><span class="bead bead-butter" aria-hidden="true"></span>选大小和颜色</li>
+          <li><span class="bead bead-mint" aria-hidden="true"></span>下载图纸开拼</li>
+        </ol>
       </div>
-      <div class="intro-detail">
-        <div class="sakura-bouquet" aria-hidden="true">
-          <img src="assets/sakura.svg" alt="" width="42" height="42">
-          <img src="assets/sakura.svg" alt="" width="30" height="30">
-          <img src="assets/sakura.svg" alt="" width="22" height="22">
-          <i></i>
-          <i></i>
-        </div>
-        <div>
-          <strong>小像素，大喜欢。</strong>
-          <span>最多 256 色 · 一格一颗豆</span>
-        </div>
+      <div class="sakura-bouquet" aria-hidden="true">
+        <img src="assets/sakura.svg" alt="" width="46" height="46">
+        <img src="assets/sakura.svg" alt="" width="30" height="30">
+        <img src="assets/sakura.svg" alt="" width="20" height="20">
       </div>
     </section>
 
     <div class="layout">
-      <aside class="controls" aria-label="图纸设置与导出">
-        <!-- 01 Image source -->
-        <section class="card upload-card">
-          <h2><span class="step">01</span> 找一张喜欢的图片</h2>
-          <label class="dropzone" id="dropzone" for="file-input">
-            <span class="upload-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none"><path d="M12 16V4m0 0L7 9m5-5 5 5M5 15v4a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-4"/></svg>
-            </span>
-            <span class="upload-copy">
-              <strong>点击上传，或拖入图片</strong>
-              <span>PNG / JPG / WebP 等 · 最大 25 MB</span>
-            </span>
-            <input id="file-input" type="file" aria-label="上传图片" accept="image/png,image/jpeg,image/webp,image/gif,image/avif,image/bmp">
-          </label>
-          <div class="source-card">
-            <img id="source-thumbnail" alt="当前图片缩略图" width="54" height="44">
-            <div>
-              <span class="source-label">当前图片</span>
-              <span id="file-name">日落山谷 · 示例图片</span>
+      <!-- 1 Image source -->
+      <section class="card source-step" aria-labelledby="source-title">
+        <div class="card-head">
+          <h2 id="source-title"><span class="bead bead-rose" aria-hidden="true"></span>选一张图</h2>
+          <button id="demo-button" class="text-button" type="button">用示例图</button>
+        </div>
+        <label class="dropzone" id="dropzone" for="file-input">
+          <img id="source-thumbnail" alt="当前图片缩略图" width="64" height="64">
+          <span class="dropzone-copy">
+            <strong id="file-name">日落山谷 · 示例图片</strong>
+            <span>点击或拖入新图片</span>
+            <small>PNG / JPG / WebP · 25 MB 内</small>
+          </span>
+          <span class="upload-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M12 16V4m0 0L7 9m5-5 5 5M5 15v4a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-4"/></svg>
+          </span>
+          <input id="file-input" type="file" aria-label="上传图片" accept="image/png,image/jpeg,image/webp,image/gif,image/avif,image/bmp">
+        </label>
+      </section>
+
+      <!-- 2 Settings -->
+      <section class="card settings-step" aria-labelledby="settings-title">
+        <h2 id="settings-title"><span class="bead bead-butter" aria-hidden="true"></span>调大小和颜色</h2>
+
+        <div class="choice-group">
+          <div class="choice-head"><span id="size-label">图纸大小</span><output id="width-value" for="width-input">32 颗</output></div>
+          <div class="chips" role="group" aria-labelledby="size-label">
+            <button type="button" data-width="24"><strong>小</strong><span>24</span></button>
+            <button type="button" data-width="32"><strong>中</strong><span>32</span></button>
+            <button type="button" data-width="48"><strong>大</strong><span>48</span></button>
+            <button type="button" data-width="64"><strong>特大</strong><span>64</span></button>
+          </div>
+        </div>
+
+        <div class="choice-group">
+          <div class="choice-head"><span id="colors-label">颜色数量</span><output id="colors-value" for="colors-input">24 色</output></div>
+          <div class="chips" role="group" aria-labelledby="colors-label">
+            <button type="button" data-colors="8"><strong>8</strong><span>好拼</span></button>
+            <button type="button" data-colors="16"><strong>16</strong><span>简洁</span></button>
+            <button type="button" data-colors="24"><strong>24</strong><span>推荐</span></button>
+            <button type="button" data-colors="64"><strong>64</strong><span>丰富</span></button>
+            <button type="button" id="full-colors" data-colors="221"><strong>221</strong><span>全部</span></button>
+          </div>
+        </div>
+
+        <details class="more">
+          <summary>
+            <span>更多调整</span>
+            <small>色卡 · 风格 · 精确数值</small>
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+          </summary>
+          <div class="more-body">
+            <label class="field" for="color-card">
+              配色色卡
+              <select id="color-card">
+                <option value="mard221" selected>MARD 标准 221 色</option>
+                <option value="auto">自动提取（参考配色）</option>
+              </select>
+            </label>
+            <label class="field" for="design-style">
+              表达方式
+              <select id="design-style">
+                <option value="pixel" selected>清晰萌化 · 轮廓优先</option>
+                <option value="faithful">原图优先 · 柔和缩小</option>
+              </select>
+            </label>
+            <div class="field">
+              <label for="width-input">横向豆数</label>
+              <input id="width-input" type="range" min="16" max="160" step="1" value="32">
+              <div class="range-labels"><span>16 · 简约</span><span>160 · 细腻</span></div>
             </div>
-            <button id="demo-button" class="text-button" type="button">试用示例</button>
+            <div class="field">
+              <label for="colors-input">颜色上限</label>
+              <input id="colors-input" type="range" min="2" max="221" step="1" value="24">
+              <div class="range-labels"><span>2 · 易拼</span><span id="colors-max">221 · 全色</span></div>
+            </div>
+            <p class="help">轮廓优先会保留细线、简化色块，不是 AI 重绘。自动保持原图比例，长边最多 160 颗。</p>
+            <p class="help" id="color-note">匹配 MARD 标准 221 色。颜色更少，拼起来更轻松。</p>
           </div>
-        </section>
+        </details>
+      </section>
 
-        <!-- 02 Settings -->
-        <section class="card settings-card">
-          <h2><span class="step">02</span> 调成想要的样子</h2>
-          <label class="palette-control" for="color-card">
-            配色色卡
-            <select id="color-card">
-              <option value="mard221" selected>MARD 标准 221 色</option>
-              <option value="auto">自动提取（参考配色）</option>
-            </select>
-          </label>
-          <label class="palette-control" for="design-style">
-            表达方式
-            <select id="design-style">
-              <option value="pixel" selected>清晰萌化 · 轮廓优先</option>
-              <option value="faithful">原图优先 · 柔和缩小</option>
-            </select>
-          </label>
+      <!-- 3 Export -->
+      <section class="card export-step" aria-labelledby="export-title">
+        <h2 id="export-title"><span class="bead bead-mint" aria-hidden="true"></span>带走图纸</h2>
+        <button id="export-chart" class="primary-button" disabled>
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 16v4h14v-4"/></svg>
+          <span>下载拼豆图纸</span>
+        </button>
+        <p id="export-status" class="help" role="status" aria-live="polite">图纸含坐标、颜色编号与用豆清单。</p>
+        <div class="secondary-actions">
+          <span>其他格式</span>
+          <button id="export-pixel" disabled>8bit 像素 PNG</button>
+          <button id="export-csv" disabled>用豆清单 CSV</button>
+        </div>
+      </section>
 
-          <div class="setting-head">
-            <label for="width-input">横向豆数</label>
-            <output id="width-value" for="width-input">32 颗</output>
-          </div>
-          <input id="width-input" type="range" min="16" max="160" step="1" value="32">
-          <div class="range-labels">
-            <span>16 · 简约</span>
-            <span>160 · 细腻</span>
-          </div>
-          <p class="help">默认 32 颗。轮廓优先保留细线、简化色块，不是 AI 重绘。自动保持原图比例，长边最多 160 颗。</p>
-
-          <div class="setting-head color-head">
-            <label for="colors-input">颜色上限</label>
-            <output id="colors-value" for="colors-input">24 色</output>
-          </div>
-          <input id="colors-input" type="range" min="2" max="221" step="1" value="24">
-          <div class="range-labels">
-            <span>2 · 易拼</span>
-            <span id="colors-max">221 · 全色</span>
-          </div>
-          <div class="presets" aria-label="颜色上限快捷设置">
-            <button data-colors="8">8 色</button>
-            <button data-colors="16">16 色</button>
-            <button data-colors="24" class="active">24 色</button>
-            <button data-colors="64">64 色</button>
-            <button id="full-colors" data-colors="221">221 色</button>
-          </div>
-          <div class="note">
-            <span class="note-icon" aria-hidden="true">i</span>
-            <p id="color-note">匹配 MARD 标准 221 色。颜色更少，拼起来更轻松。</p>
-          </div>
-        </section>
-
-        <!-- 03 Export -->
-        <section class="card export-card">
-          <h2><span class="step">03</span> 把创作带走</h2>
-          <button id="export-chart" class="primary-button" disabled>
-            <span>下载拼豆图纸</span>
-            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 16v4h14v-4"/></svg>
-          </button>
-          <div class="secondary-actions">
-            <button id="export-pixel" disabled>8bit 像素 PNG</button>
-            <button id="export-csv" disabled>用豆清单 CSV</button>
-          </div>
-          <p id="export-status" class="help" role="status" aria-live="polite">图纸含坐标、颜色编号与用豆清单。</p>
-        </section>
-      </aside>
-
+      <!-- Workbench -->
       <section class="workspace" id="workspace" aria-label="图纸预览" tabindex="-1">
         <div class="workspace-top">
-          <div class="workspace-title">
-            <span class="workspace-icon" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
-            <div>
-              <h2>你的拼豆工作台</h2>
-              <span>每一格，都有一点喜欢。</span>
-            </div>
+          <div class="tabs" role="group" aria-label="预览模式">
+            <button id="grid-tab" class="active" aria-pressed="true">图纸</button>
+            <button id="beads-tab" aria-pressed="false">拼豆效果</button>
+            <button id="pixel-tab" aria-pressed="false">像素</button>
+            <button id="original-tab" aria-pressed="false">原图</button>
           </div>
           <span id="status" role="status" aria-live="polite">准备中…</span>
         </div>
 
-        <div class="stats">
-          <div>
-            <span>图纸尺寸 <span class="stat-unit">格</span></span>
-            <strong id="size-stat">—</strong>
-          </div>
-          <div>
-            <span>实际用色 <span id="color-card-stat" class="stat-unit">MARD 221</span></span>
-            <strong id="colors-stat">—</strong>
-          </div>
-          <div>
-            <span>拼豆总数 <span class="stat-unit">不含空格</span></span>
-            <strong id="beads-stat">—</strong>
-          </div>
-        </div>
-
-        <div class="preview-toolbar">
-          <div class="tabs" role="group" aria-label="预览模式">
-            <button id="grid-tab" class="active" aria-pressed="true">拼豆图纸</button>
-            <button id="pixel-tab" aria-pressed="false">像素效果</button>
-            <button id="beads-tab" aria-pressed="false">拼豆效果</button>
-            <button id="original-tab" aria-pressed="false">原始图片</button>
-          </div>
-          <label class="symbol-option"><input type="checkbox" id="symbols-input" aria-label="显示颜色编号" checked> 显示编号</label>
-        </div>
-
         <div id="bead-settings" class="bead-settings" hidden>
           <div class="bead-switch" role="group" aria-label="拼豆熨烫状态">
-            <button id="bead-round" class="active" aria-pressed="true">熨烫前 · 圆豆</button>
-            <button id="bead-fused" aria-pressed="false">熨烫后 · 成品</button>
+            <button id="bead-round" class="active" aria-pressed="true">熨烫前</button>
+            <button id="bead-fused" aria-pressed="false">熨烫后</button>
           </div>
-          <span>外观示意，不代表实物颜色或实际熨烫程度。</span>
+          <span>外观示意，不代表实物颜色</span>
         </div>
 
         <div class="canvas-viewport" id="canvas-viewport" tabindex="0" role="region" aria-label="图纸画布，可用方向键滚动" aria-busy="true">
@@ -199,21 +177,33 @@
         </div>
 
         <div class="preview-footer">
-          <span id="preview-hint">10 格深线 / 5 格浅线 · 透明区域留空</span>
+          <dl class="stats">
+            <div><dt>尺寸</dt><dd id="size-stat">—</dd></div>
+            <div><dt>颜色 <span id="color-card-stat">MARD 221</span></dt><dd id="colors-stat">—</dd></div>
+            <div><dt>豆子</dt><dd id="beads-stat">—</dd></div>
+          </dl>
           <div class="zoom-controls">
+            <label class="symbol-option"><input type="checkbox" id="symbols-input" aria-label="显示颜色编号" checked> 编号</label>
+            <label class="zoom" for="zoom-input">
+              <span class="visually-hidden">缩放</span>
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5M8.5 11h5"/></svg>
+              <input type="range" id="zoom-input" min="1" max="32" value="16">
+              <output id="zoom-value">16px</output>
+            </label>
             <button id="fit-button" class="text-button">适应窗口</button>
-            <label for="zoom-input">缩放 <input type="range" id="zoom-input" min="1" max="32" value="16"><output id="zoom-value">16px</output></label>
           </div>
         </div>
+        <p id="preview-hint" class="preview-hint">10 格深线 / 5 格浅线 · 透明区域留空</p>
+      </section>
 
-        <section class="palette-section">
-          <div class="palette-heading">
-            <h3>准备这些颜色 <span id="palette-count">0</span></h3>
-            <span id="palette-label">MARD 色号 · HEX · 颗数</span>
-          </div>
-          <div id="palette-list" class="palette-list"></div>
-          <p id="palette-disclaimer" class="palette-disclaimer">MARD 标准 221 色 · 屏幕参考色，购买前请核对店家实物色卡。</p>
-        </section>
+      <!-- Shopping list -->
+      <section class="card palette-section" aria-labelledby="palette-title">
+        <div class="palette-heading">
+          <h2 id="palette-title">备豆清单 <span id="palette-count">0</span></h2>
+          <span id="palette-label">MARD 色号 · HEX · 颗数</span>
+        </div>
+        <div id="palette-list" class="palette-list"></div>
+        <p id="palette-disclaimer" class="palette-disclaimer">MARD 标准 221 色 · 屏幕参考色，购买前请核对店家实物色卡。</p>
       </section>
     </div>
 
