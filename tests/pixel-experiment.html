@@ -1,6 +1,28 @@
 <!doctype html>
 <html lang="zh-CN">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>NyanDou · 32 格算法对照</title>
-<style>body{font:14px system-ui;background:#fff6f7;color:#493b44;margin:24px;max-width:1100px}h1{font-size:24px}p{line-height:1.8}section{background:#fffdfc;border:1px solid #efdee5;border-radius:12px;padding:16px;margin:16px 0}.samples{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}figure{margin:0}canvas{width:100%;aspect-ratio:1;image-rendering:pixelated;border:1px solid #efdee5}figcaption{margin-top:8px;font-weight:600}.metric{font-size:12px;color:#786a75}@media(max-width:650px){.samples{grid-template-columns:repeat(2,minmax(0,1fr))}}</style></head>
-<body><h1>NyanDou · 32 格算法对照</h1><p>相同 MARD 221 色卡、24 色上限、无抖动。32×32 是 64×64 用豆量的四分之一。以下为合成测试图片，不是用户照片，也不能证明对所有图片都有效。</p><div id="results"></div><script type="module" src="pixel-experiment.js"></script></body>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>NyanDou · 32 格算法对照</title>
+  <style>
+    body { font: 14px system-ui; background: #fff6f7; color: #493b44; margin: 24px; max-width: 1100px; }
+    h1 { font-size: 24px; }
+    p { line-height: 1.8; }
+    section { background: #fffdfc; border: 1px solid #efdee5; border-radius: 12px; padding: 16px; margin: 16px 0; }
+    .samples { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+    figure { margin: 0; }
+    canvas { width: 100%; aspect-ratio: 1; image-rendering: pixelated; border: 1px solid #efdee5; }
+    figcaption { margin-top: 8px; font-weight: 600; }
+    .metric { font-size: 12px; color: #786a75; }
+    @media (max-width: 650px) {
+      .samples { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+  </style>
+</head>
+<body>
+  <h1>NyanDou · 32 格算法对照</h1>
+  <p>相同 MARD 221 色卡、24 色上限、无抖动。32×32 是 64×64 用豆量的四分之一。以下为合成测试图片，不是用户照片，也不能证明对所有图片都有效。</p>
+  <div id="results"></div>
+  <script type="module" src="pixel-experiment.js"></script>
+</body>
 </html>
