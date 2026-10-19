@@ -10,9 +10,10 @@ const scope = self as unknown as WorkerPort<QuantizeRequest, QuantizeResponse>;
 scope.onmessage = ({ data }) => {
   try {
     const { width, height, maxColors } = data;
-    const rgba = data.designStyle === 'pixel' ? stylize(data.rgba, width, height) : data.rgba;
+    const isPixelStyle = data.designStyle === 'pixel';
+    const rgba = isPixelStyle ? stylize(data.rgba, width, height) : data.rgba;
     const colorCard = data.paletteMode === 'mard221' ? MARD221 : null;
-    const result = quantize(rgba, width, height, maxColors, colorCard);
+    const result = quantize(rgba, width, height, maxColors, colorCard, isPixelStyle);
     scope.postMessage({ result }, [result.indices.buffer]);
   } catch (error) {
     scope.postMessage({ error: errorMessage(error) });

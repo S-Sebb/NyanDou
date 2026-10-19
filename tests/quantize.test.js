@@ -55,6 +55,23 @@ test('reserves one palette entry for transparency at the 256-color limit', () =>
   assert.equal(result.counts.reduce((a, b) => a + b, 0), 1023);
 });
 
+test('simplify recolors lone beads close to their surroundings and keeps contrasting ones', () => {
+  const PEACH = [240, 200, 170, 255];
+  const TAN = [228, 184, 150, 255];
+  const INK = [20, 20, 20, 255];
+  const grid = cells => pixels(Array.from({ length: 25 }, (_, i) => cells[i] ?? PEACH));
+  // A tan speck at the centre and an ink eye at the edge of a peach 5 × 5 area.
+  const input = grid({ 12: TAN, 10: INK });
+
+  const plain = quantize(input, 5, 5, 8);
+  assert.equal(plain.palette.length, 3);
+
+  const simplified = quantize(input, 5, 5, 8, null, true);
+  assert.deepEqual(simplified.palette, [PEACH.slice(0, 3), INK.slice(0, 3)]);
+  assert.deepEqual(simplified.counts, [24, 1]);
+  assert.equal(simplified.indices[10], 1);
+});
+
 test('Lab conversion matches D65 black and white', () => {
   assert.deepEqual(rgbToLab([0, 0, 0]), [0, 0, 0]);
   const white = rgbToLab([255, 255, 255]);

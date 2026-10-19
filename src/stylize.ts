@@ -1,8 +1,9 @@
 // "Outline first" downsampling. Every bead is sampled as a 4 × 4 grid of pixels whose
 // colors are split into two clusters. Coherent dark details (outlines, eyes, mouths)
 // win over a blurred average, while low-contrast texture is simplified. Nothing is
-// invented and the framing is never changed.
-import { squaredDistance } from './color.ts';
+// invented and the framing is never changed. Colors get a little more saturated, which
+// keeps them recognizable on the bead color card and makes the result look cheerful.
+import { labToRgb, rgbToLab, squaredDistance } from './color.ts';
 import { DETAIL_SAMPLES_PER_AXIS } from './constants.ts';
 import type { RGB } from './types.ts';
 
@@ -24,8 +25,15 @@ const MIN_CLUSTER_DISTANCE = 40;
 const MIN_DETAIL_CONTRAST = 50;
 /** A detail needs this many samples that touch another detail sample; one speck is noise. */
 const MIN_CONNECTED_DETAIL_SAMPLES = 3;
-/** Beads with fewer opaque samples are left empty, which trims fringes at transparent edges. */
-const MIN_OPAQUE_SAMPLES = 6;
+/** Beads covering less of their area are left empty, which trims fringes and faint shadows. */
+const MIN_COVERAGE = 0.5;
+/** Chroma multiplier in CIELAB; lightness is kept so outlines and shading stay as they are. */
+const CHROMA_BOOST = 1.2;
+
+function vivid(rgb: RGB): RGB {
+  const [lightness, a, b] = rgbToLab(rgb);
+  return labToRgb([lightness, a * CHROMA_BOOST, b * CHROMA_BOOST]);
+}
 
 /** Rec. 709 luma of the gamma-encoded color. */
 const luma = (rgb: RGB) => rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722;
@@ -80,7 +88,19 @@ function chooseBeadColor(samples: Sample[]): RGB {
   // when they cover less than half of the bead.
   const isDetail = luma(centers[light]) - luma(centers[dark]) > MIN_DETAIL_CONTRAST
     && countConnectedSamples(clusters[dark]) >= MIN_CONNECTED_DETAIL_SAMPLES;
-  return centers[isDetail ? dark : dominant];
+  const chosen = isDetail ? dark : dominant;
+  return purestColor(clusters[chosen], centers[1 - chosen]);
+}
+
+/**
+ * The average of the half of a cluster farthest from the other color. Samples that
+ * straddle an edge are blends of both sides; leaving them out keeps flat colors clean.
+ */
+function purestColor(cluster: Sample[], otherColor: RGB): RGB {
+  const byPurity = cluster
+    .map(sample => ({ sample, distance: squaredDistance(sample.rgb, otherColor) }))
+    .sort((a, b) => b.distance - a.distance);
+  return weightedAverage(byPurity.slice(0, Math.ceil(byPurity.length / 2)).map(({ sample }) => sample));
 }
 
 /**
@@ -106,12 +126,11 @@ export function stylize(rgba: Uint8ClampedArray, width: number, height: number):
           if (alpha) samples.push({ rgb: [rgba[offset], rgba[offset + 1], rgba[offset + 2]], alpha, x, y });
         }
       }
-      if (!samples.length) continue;
+      // A bead is either placed or not: half-covered edges become solid beads in the
+      // shape's own color instead of pale fringes blended with the white background.
+      if (alphaSum < SAMPLES_PER_BEAD * 255 * MIN_COVERAGE) continue;
 
-      const offset = (beadY * width + beadX) * 4;
-      output.set(chooseBeadColor(samples).map(Math.round), offset);
-      // Snap well-covered edges to the average opacity of their opaque samples.
-      output[offset + 3] = samples.length >= MIN_OPAQUE_SAMPLES ? Math.round(alphaSum / samples.length) : 0;
+      output.set([...vivid(chooseBeadColor(samples)), 255], (beadY * width + beadX) * 4);
     }
   }
   return output;
