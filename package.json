@@ -1,0 +1,20 @@
+{
+  "name": "nyandou",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22.12.0" },
+  "scripts": {
+    "start": "vite --host 127.0.0.1 --port 4174",
+    "check": "tsc --noEmit",
+    "build": "npm run check && vite build && node scripts/compress.mjs",
+    "preview": "vite preview --host 127.0.0.1 --port 4174",
+    "preview:lan": "python3 serve.py --port 4176",
+    "test": "node --experimental-strip-types --test tests/*.test.js",
+    "test:browser": "vite build --mode test && node tests/run-browser.mjs",
+    "test:smoke": "node tests/smoke.mjs"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2",
+    "vite": "8.3.3"
+  }
+}

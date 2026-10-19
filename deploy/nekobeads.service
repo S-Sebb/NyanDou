@@ -1,0 +1,22 @@
+[Unit]
+Description=NyanDou private preview (loopback only)
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/Repos/NekoBeads
+ExecStart=/usr/sbin/nginx -e stderr -p /home/ubuntu/Repos/NekoBeads/ -c deploy/nginx.conf
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/ubuntu/Repos/NekoBeads/run
+KillSignal=SIGQUIT
+TimeoutStopSec=10
+
+[Install]
+WantedBy=multi-user.target
