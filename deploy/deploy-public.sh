@@ -4,7 +4,7 @@ cd "$(dirname "$0")/.."
 
 # Update app assets and its loopback-only backend before exposing the new vhost.
 bash deploy/deploy.sh
-remote=TCSFrontEnd
+remote=SebOracle
 target=/home/ubuntu/Repos/NekoBeads
 rsync -a -- deploy/nginx-public-http.conf deploy/nginx-public.conf deploy/nyandou-renew-hook.sh "$remote:$target/deploy/"
 

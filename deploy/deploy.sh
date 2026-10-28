@@ -2,7 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-remote=TCSFrontEnd
+remote=SebOracle
 target=/home/ubuntu/Repos/NekoBeads
 
 # Publish only the Vite production build. Upload hashed assets before switching
