@@ -104,7 +104,7 @@ npm run test:smoke
 
 ## 私有部署
 
-部署目标：SSH 别名 `TCSFrontEnd`，目录 `/home/ubuntu/Repos/NekoBeads/`。独立 nginx 实例由 `nekobeads.service` 管理，仅监听 `127.0.0.1:4173`，开机自动启动。不会修改服务器现有的 nginx 站点、DNS 或公网防火墙。
+部署目标：SSH 别名 `SebOracle`，目录 `/home/ubuntu/Repos/NekoBeads/`。独立 nginx 实例由 `nekobeads.service` 管理，仅监听 `127.0.0.1:4173`，开机自动启动。不会修改服务器现有的 nginx 站点、DNS 或公网防火墙。
 
 ```bash
 bash deploy/deploy.sh
@@ -115,7 +115,7 @@ bash deploy/deploy.sh
 通过 SSH 隧道访问：
 
 ```bash
-ssh -N -L 127.0.0.1:4175:127.0.0.1:4173 TCSFrontEnd
+ssh -N -L 127.0.0.1:4175:127.0.0.1:4173 SebOracle
 ```
 
 保持终端运行，打开 <http://127.0.0.1:4175>。如果本机 4175 端口已占用，改用其他本地端口。图片仍在浏览器本机处理，不会传到服务器。
@@ -123,12 +123,12 @@ ssh -N -L 127.0.0.1:4175:127.0.0.1:4173 TCSFrontEnd
 服务检查：
 
 ```bash
-ssh TCSFrontEnd systemctl status nekobeads.service --no-pager
+ssh SebOracle systemctl status nekobeads.service --no-pager
 ```
 
 ## 正式部署 · HTTPS
 
-正式地址：**https://dou.love765.me/**。Namecheap 的 A 记录指向 `TCSFrontEnd`，公开 nginx 仅为该域名单独添加站点，反向代理到现有 `127.0.0.1:4173` 后端；后端仍不直接对公网监听。图片处理和下载文件生成仍在访问者浏览器内完成。
+正式地址：**https://dou.love765.me/**。Namecheap 的 A 记录指向 `SebOracle`，公开 nginx 仅为该域名单独添加站点，反向代理到现有 `127.0.0.1:4173` 后端；后端仍不直接对公网监听。公网 443 端口由服务器的 SNI 分流器与其他服务共享，本站 HTTPS 监听 `127.0.0.1:8443`，通过 PROXY protocol 取得访问者地址。图片处理和下载文件生成仍在访问者浏览器内完成。
 
 ```bash
 bash deploy/deploy-public.sh
@@ -146,9 +146,9 @@ bash deploy/deploy-public.sh
 检查与续期演练：
 
 ```bash
-ssh TCSFrontEnd sudo nginx -t
-ssh TCSFrontEnd systemctl status nginx certbot.timer --no-pager
-ssh TCSFrontEnd sudo certbot renew --cert-name dou.love765.me --dry-run --run-deploy-hooks --no-random-sleep-on-renew
+ssh SebOracle sudo nginx -t
+ssh SebOracle systemctl status nginx certbot.timer --no-pager
+ssh SebOracle sudo certbot renew --cert-name dou.love765.me --dry-run --run-deploy-hooks --no-random-sleep-on-renew
 ```
 
 只发布最新应用内容时，运行 `bash deploy/deploy.sh` 即可；无需重新申请证书。同 Wi-Fi 本地访问和 SSH 私有预览仍保留。
